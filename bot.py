@@ -1,17 +1,15 @@
 import os
 import aiohttp
-from io import BytesIO
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-import asyncio
 from aiohttp import web
 
 # -----------------------------
 # Environment variables
 # -----------------------------
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+LANGUAGETOOL_API_URL = "https://api.languagetool.org/v2/check"
 
 # -----------------------------
 # Initialize bot and dispatcher
@@ -20,26 +18,25 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
 # -----------------------------
-# Generate image from HuggingFace
+# Check spelling using LanguageTool
 # -----------------------------
-async def generate_image(prompt: str):
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    payload = {"inputs": prompt, "options": {"wait_for_model": True}}
+async def check_spelling(word: str):
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = f"text={word}&language=en-US"
 
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(HF_MODEL_URL, headers=headers, json=payload) as resp:
-                text = await resp.text()
-                print(f"HuggingFace API status: {resp.status}, response: {text}")
-
+            async with session.post(LANGUAGETOOL_API_URL, headers=headers, data=data) as resp:
                 if resp.status != 200:
+                    text = await resp.text()
+                    print(f"LanguageTool API Error: {resp.status}, {text}")
                     return None
 
-                data = await resp.read()
-                return data
+                result = await resp.json()
+                return result
 
         except Exception as e:
-            print(f"Error during HuggingFace API request: {e}")
+            print(f"Error during LanguageTool API request: {e}")
             return None
 
 # -----------------------------
@@ -47,30 +44,51 @@ async def generate_image(prompt: str):
 # -----------------------------
 async def start_handler(message: types.Message):
     await message.reply(
-        "🤖 Welcome to the AI Image Generator Bot!\n"
-        "Send me a prompt and I will generate an image.\n\n"
-        "Example prompts:\n"
-        "👉 'Solar system educational diagram'\n"
-        "👉 'Printer showing paper path illustration'"
+        "🤖 Welcome to the Spelling Checker Bot!\n"
+        "Send me a **single word**, and I will check for spelling mistakes.\n\n"
+        "Example:\n"
+        "👉 'congrtulion'\n"
+        "👉 'appel'"
     )
 
-async def prompt_handler(message: types.Message):
-    prompt = message.text
-    await message.reply("🎨 Generating your image… please wait (10–20 seconds).")
-    img_bytes = await generate_image(prompt)
+async def spell_handler(message: types.Message):
+    word = message.text.strip()
 
-    if img_bytes is None:
-        await message.reply("⚠️ Failed to generate image. Try again later.")
+    # Check if only one word
+    if len(word.split()) != 1:
+        await message.reply("⚠️ Please send **only one word** at a time.")
         return
 
-    image_stream = BytesIO(img_bytes)
-    image_stream.name = "image.png"
-    image_stream.seek(0)
-    await message.reply_photo(photo=image_stream)
+    await message.reply("🔍 Checking spelling…")
 
+    result = await check_spelling(word)
+    if result is None:
+        await message.reply("⚠️ Failed to check spelling. Try again later.")
+        return
+
+    matches = result.get("matches", [])
+    if not matches:
+        await message.reply(f"✅ No spelling mistakes found for '{word}'.")
+        return
+
+    # Only consider the first match for simplicity
+    match = matches[0]
+    short_message = match.get("shortMessage", "Possible mistake")
+    replacements = match.get("replacements", [])
+
+    if replacements:
+        correction = replacements[0].get("value", "No suggestion")
+    else:
+        correction = "No suggestion"
+
+    reply_text = f"⚠️ {short_message} detected.\nSuggested correction: {correction}"
+    await message.reply(reply_text)
+
+# -----------------------------
 # Register handlers (Aiogram 3.x)
+# -----------------------------
 dp.message.register(start_handler, Command("start"))
-dp.message.register(prompt_handler)
+dp.message.register(spell_handler)
 
 # -----------------------------
 # Aiohttp Web Server (FOR RENDER)
@@ -82,10 +100,9 @@ async def start_webserver():
     app = web.Application()
     app.router.add_get("/", web_handler)
 
-    port = int(os.environ.get("PORT", 10000))  # Render gives PORT
+    port = int(os.environ.get("PORT", 10000))  # Render provides PORT
     runner = web.AppRunner(app)
     await runner.setup()
-
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     print(f"Web server running on port {port}")
@@ -94,7 +111,7 @@ async def start_webserver():
 # Main Application Runner
 # -----------------------------
 async def main():
-    # Start tiny web server so Render detects the port
+    # Start Render webserver
     await start_webserver()
 
     # Start Telegram bot polling
