@@ -71,17 +71,18 @@ async def spell_handler(message: types.Message):
         await message.reply(f"✅ No spelling mistakes found for '{word}'.")
         return
 
-    # Only consider the first match for simplicity
+    # Only consider the first match
     match = matches[0]
     short_message = match.get("shortMessage", "Possible mistake")
     replacements = match.get("replacements", [])
 
     if replacements:
-        correction = replacements[0].get("value", "No suggestion")
+        correction_list = [rep.get("value", "") for rep in replacements]
+        correction = ", ".join(correction_list)
     else:
         correction = "No suggestion"
 
-    reply_text = f"⚠️ {short_message} detected.\nSuggested correction: {correction}"
+    reply_text = f"⚠️ {short_message} detected.\nSuggested correction(s): {correction}"
     await message.reply(reply_text)
 
 # -----------------------------
