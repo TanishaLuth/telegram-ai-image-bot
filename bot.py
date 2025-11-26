@@ -1,8 +1,8 @@
 import os
 import aiohttp
+import asyncio
 from io import BytesIO
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
 
 # Environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -64,4 +64,5 @@ async def handle_prompt(message: types.Message):
 
 if __name__ == "__main__":
     print("Bot is running...")
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(dp.start_polling())
+
