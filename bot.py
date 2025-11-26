@@ -1,31 +1,37 @@
 import os
 import aiohttp
-import asyncio
 from io import BytesIO
 from aiogram import Bot, Dispatcher, types
+import asyncio
 
+# -----------------------------
 # Environment variables
+# -----------------------------
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
 
-# Initialize bot
+# -----------------------------
+# Initialize bot and dispatcher
+# -----------------------------
 bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot)
-dp.start_polling(bot)
+dp = Dispatcher()  # Aiogram 3.x: no bot in constructor
 
+# -----------------------------
+# Generate image from HuggingFace
+# -----------------------------
 async def generate_image(prompt: str):
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     payload = {
         "inputs": prompt,
-        "options": {"wait_for_model": True}  # Wait for model to load if necessary
+        "options": {"wait_for_model": True}  # Wait for model to load
     }
 
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(HF_MODEL_URL, headers=headers, json=payload) as resp:
                 text = await resp.text()
-                print(f"HuggingFace API status: {resp.status}, response: {text}")  # For Render logs
+                print(f"HuggingFace API status: {resp.status}, response: {text}")  # Log in Render
 
                 if resp.status != 200:
                     return None
@@ -37,16 +43,22 @@ async def generate_image(prompt: str):
             print(f"Error during HuggingFace API request: {e}")
             return None
 
+# -----------------------------
+# /start command
+# -----------------------------
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     await message.reply(
         "🤖 Welcome to the AI Image Generator Bot!\n"
         "Send me any prompt, and I will generate an image for you.\n\n"
-        "Example:\n"
+        "Example prompts:\n"
         "👉 'Solar system educational diagram'\n"
         "👉 'Printer showing paper path illustration'"
     )
 
+# -----------------------------
+# Handle user prompts
+# -----------------------------
 @dp.message_handler()
 async def handle_prompt(message: types.Message):
     prompt = message.text
@@ -54,7 +66,7 @@ async def handle_prompt(message: types.Message):
     img_bytes = await generate_image(prompt)
 
     if img_bytes is None:
-        await message.reply("⚠️ Failed to generate image. Try again later.")
+        await message.reply("⚠️ Failed to generate image. Check logs or try again later.")
         return
 
     # Send image to Telegram
@@ -63,8 +75,9 @@ async def handle_prompt(message: types.Message):
     image_stream.seek(0)
     await message.reply_photo(photo=image_stream)
 
+# -----------------------------
+# Run bot
+# -----------------------------
 if __name__ == "__main__":
     print("Bot is running...")
-    asyncio.run(dp.start_polling())
-
-
+    asyncio.run(dp.start_polling(bot))
