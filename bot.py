@@ -2,6 +2,7 @@ import os
 import aiohttp
 from io import BytesIO
 from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
 import asyncio
 
 # -----------------------------
@@ -15,7 +16,7 @@ HF_MODEL_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diff
 # Initialize bot and dispatcher
 # -----------------------------
 bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher()  # Aiogram 3.x: no bot in constructor
+dp = Dispatcher()
 
 # -----------------------------
 # Generate image from HuggingFace
@@ -44,7 +45,7 @@ async def generate_image(prompt: str):
             return None
 
 # -----------------------------
-# Handlers (Aiogram 3.x syntax)
+# Handlers
 # -----------------------------
 async def start_handler(message: types.Message):
     await message.reply(
@@ -64,16 +65,15 @@ async def prompt_handler(message: types.Message):
         await message.reply("⚠️ Failed to generate image. Check logs or try again later.")
         return
 
-    # Send image to Telegram
     image_stream = BytesIO(img_bytes)
     image_stream.name = "image.png"
     image_stream.seek(0)
     await message.reply_photo(photo=image_stream)
 
 # -----------------------------
-# Register handlers
+# Register handlers using Aiogram 3.x filters
 # -----------------------------
-dp.message.register(start_handler, commands=["start"])
+dp.message.register(start_handler, Command(commands=["start"]))
 dp.message.register(prompt_handler)  # default handler for all text messages
 
 # -----------------------------
