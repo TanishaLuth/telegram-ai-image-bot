@@ -24,14 +24,14 @@ async def generate_image(prompt: str):
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     payload = {
         "inputs": prompt,
-        "options": {"wait_for_model": True}  # Wait for model to load
+        "options": {"wait_for_model": True}
     }
 
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(HF_MODEL_URL, headers=headers, json=payload) as resp:
                 text = await resp.text()
-                print(f"HuggingFace API status: {resp.status}, response: {text}")  # Log in Render
+                print(f"HuggingFace API status: {resp.status}, response: {text}")
 
                 if resp.status != 200:
                     return None
@@ -44,10 +44,9 @@ async def generate_image(prompt: str):
             return None
 
 # -----------------------------
-# /start command
+# Handlers (Aiogram 3.x syntax)
 # -----------------------------
-@dp.message_handler(commands=["start"])
-async def start(message: types.Message):
+async def start_handler(message: types.Message):
     await message.reply(
         "🤖 Welcome to the AI Image Generator Bot!\n"
         "Send me any prompt, and I will generate an image for you.\n\n"
@@ -56,11 +55,7 @@ async def start(message: types.Message):
         "👉 'Printer showing paper path illustration'"
     )
 
-# -----------------------------
-# Handle user prompts
-# -----------------------------
-@dp.message_handler()
-async def handle_prompt(message: types.Message):
+async def prompt_handler(message: types.Message):
     prompt = message.text
     await message.reply("🎨 Generating your image… please wait (10–20 seconds).")
     img_bytes = await generate_image(prompt)
@@ -74,6 +69,12 @@ async def handle_prompt(message: types.Message):
     image_stream.name = "image.png"
     image_stream.seek(0)
     await message.reply_photo(photo=image_stream)
+
+# -----------------------------
+# Register handlers
+# -----------------------------
+dp.message.register(start_handler, commands=["start"])
+dp.message.register(prompt_handler)  # default handler for all text messages
 
 # -----------------------------
 # Run bot
