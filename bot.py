@@ -12,6 +12,7 @@ HF_MODEL_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diff
 # Initialize bot
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
+dp.start_polling(bot)
 
 async def generate_image(prompt: str):
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
@@ -65,4 +66,5 @@ async def handle_prompt(message: types.Message):
 if __name__ == "__main__":
     print("Bot is running...")
     asyncio.run(dp.start_polling())
+
 
